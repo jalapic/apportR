@@ -1,0 +1,17 @@
+Package: apportR
+Title: Apportionment Tools and Data
+Version: 0.0.0.9000
+Description: Methods for solving apportionment problems
+Authors: James P. Curley <jc3181@columbia.edu>
+Maintainer: James P. Curley <jc3181@columbia.edu>
+Depends:
+    R (>= 3.1.0)
+License: >GPL-3
+LazyData: true
+Imports:
+Suggests:
+    knitr,
+    testthat
+URL: https://github.com/jalapic/apportR
+BugReports: https://github.com/jalapic/apportR
+VignetteBuilder: knitr
