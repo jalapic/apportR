@@ -1,0 +1,922 @@
+---
+title: "apportR introduction"
+author: "Prof James P Curley, Columbia University"
+date: "`r Sys.Date()`"
+output: html_document
+vignette: >
+  %\VignetteIndexEntry{apportR introduction}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
+---
+
+```{r, echo = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+
+## Introduction
+
+The `apportR` package contains several functions for performing apportionment procedures.  The inspiration behind me writing this package can be found [here](http://rpubs.com/jalapic/apportRinsp).  This package is in development and is very much a work in progress.  This vignette details some sample problems that can be solved using the functions in this package, information regarding the example datasets contained in `apportR` as well as some background and worked examples of each function.  At this stage of development I would welcome hearing from anyone who thinks that they could help improve the package.
+
+
+
+------
+
+
+### Installation
+
+The `apportR` package can be downloaded from [github](https://github.com/jalapic/apportR).
+
+```{r, eval=FALSE}
+library(devtools)
+devtools::install_github("jalapic/apportR")
+
+```
+
+\  
+
+#### Loading the package
+```{r, warning=F, message=FALSE}
+library(apportR)
+```
+
+\  
+
+
+------
+
+
+### Examples
+
+To illustrate the general problem at hand, here are three examples.
+
+\  
+
+#### Fair Division Example 1.
+
+> Mom has 50 identical pieces of candy that cannot be broken into bits.  She tells her five children that she will divide the candy fairly at the end of the week according to the proportion of housework that each performs.
+
+\  
+
+The following tables shows the minutes spent in housework by each child and how many of the 50 candies each child should expect to get:
+
+
+```{r}
+housework
+
+
+candies <- (50*housework) / sum(housework)
+candies
+
+floor(candies)
+
+
+sum(floor(candies))
+
+```
+
+\  
+
+Anna expects 8.33%, Betty 4.33%, Carl 9.6%, Derek 11.33% and Ella 16.39% of the candies, but they cannot be broken up.
+Assuming each gets the number of candies equal to their rounded down proportion at least, then Who should get the extra 2 candies that are not yet allocated?
+
+
+\  
+
+
+#### Fair Division Example 2.
+
+> There are 12 scholarships to be given out to each of 3 subjects at a university. They are to be awarded based upon the proportion of majors that each subject has.
+
+\  
+
+Here are the majors in each subject as well as the expected number of scholarships each would get out of the 12 available:
+
+```{r}
+majors
+
+
+scholarships <- (12*majors) / sum(majors)
+scholarships
+
+floor(scholarships)
+
+
+sum(floor(scholarships))
+
+```
+
+\  
+
+If each gets the rounded down value that they would expect, where do the remaining 2 scholarships go ?  Presumably Psychology should get an extra one as its fractional is .9, but which of English and History should get the other one?
+
+\  
+
+
+
+#### Fair Division Example 3.
+
+> At the 1792 US House of Representatives elections, a total of 105 seats were to be awarded that would be shared between the 15 states of the union proportional to each state's population size at the 1790 US census.
+
+\  
+
+[More reading can be found here](http://en.wikipedia.org/wiki/United_States_House_of_Representatives_elections,_1792)
+
+\  
+
+Here are the states and their population sizes in 1790, followed by the expected number of seats for each state based on there being 105 available:
+
+
+```{r}
+usa1790
+
+
+seats <- (105*usa1790) / sum(usa1790)
+seats
+
+floor(seats)
+
+
+sum(floor(seats))
+
+```
+
+\  
+
+Who should get those 8 extra seats ???  This is a slightly more important question to get right than the fair division of candies (depending upon your perspective)!
+
+I will describe some methods for working this out as well as the functions contained in `apportR` to represent these methods a bit later in this vignette.
+
+\  
+
+
+------
+
+
+### Datasets
+
+The `apportR` package contains a number of small datasets useful for testing functions and/or illustrating methods.  These are:
+
+```{r, eval=FALSE}
+data(package='apportR')
+
+#Data sets in package ‘apportR’:
+#
+#housework                            Housework example
+#majors                               Majors example
+#parador                              Parador example
+#pop1                                 Population example 1
+#usa1790                              USA population by state in 1790.
+#usa1820                              USA population by state in 1820.
+#usa1832                              USA population by state in 1832.
+#usa1880                              USA population by state in 1880.
+#usa1900                              USA population by state in 1900.
+#usa1907                              USA population by state in 1907.
+#usa1990                              USA population by state in 1990.
+#usa_census                           USA population by state in every census.
+```
+
+\  
+
+All are named vectors except for the last `usa_census` which is a dataframe that contains the year that each state was admitted to the union as well as the population of every state at every official US census.  It should be noted that these population figures do not include Native American or slave populations.
+
+
+\  
+
+
+------
+
+
+### Methods / Functions Overview
+
+The methods for solving these sorts of questions essentially fall into two broad groups.  There are the standard (or non-divisor) methods and the divisor methods.  Many (if not all) of them have been discovered independently in various disciplines and so each may have several different names.   I will mainly focus on the methods from the historical perspective of the US House of Representatives apportionment problem, as it is the most interesting.  
+
+Currently I include discussion of the standard (non-divisor) methods.  I will add information about the divisor methods shortly.  
+
+
+\  
+
+
+------
+
+
+## Standard Non-Divisor Methods
+
+- Hamilton's Method, aka Largest Remainder Method, [Vinton's Method](http://en.wikipedia.org/wiki/Samuel_Finley_Vinton), Hare-Niemeyer Method.
+- Lowndes' Method
+
+\  
+
+
+------
+
+
+### **Hamilton Method**
+
+The most simple method was first suggested by [Alexander Hamilton](http://www.maa.org/publications/periodicals/convergence/apportioning-representatives-in-the-united-states-congress-hamiltons-method-of-apportionment) in 1792.
+
+Quite straightforwardly, the logic of this method is as follows:
+
+- choose the number of seats available
+- calculate the standard divisor (this is equal to the total population / number of seats)
+- calculate the standard quota (this is equal to each state population / standard divisor)
+- assign each state initally its lower quota (this is the rounded down value of each standard quota)
+- calculate how many seats are still to be assigned
+- assign extra seats to those states with the highest fractionals from their standad quota in descending order.
+
+\ 
+
+**Example**
+
+There were 120 seats to be allocated in the House in 1790.  The population of each state and the total US population at the 1790 census was as follows:
+
+```{r}
+usa1790
+
+sum(usa1790)
+```
+
+\  
+
+The standard divisor (which is equivalent to the average number of people that each representative is representing) and standard quotas of each state are therefore:
+
+```{r}
+#standard divisor
+std <- sum(usa1790) / 120
+std
+
+
+stq <- usa1790 / std
+stq
+
+```
+
+
+\  
+
+The first allocation of seats is the rounded down value of these standard quotas.  When summing these values, it is clear that they only sum to 111 seats which is 9 short of the required total of 120.
+
+
+```{r}
+
+lowq <- floor(stq)
+lowq
+
+sum(lowq)
+```
+
+
+\  
+
+The states are then arranged in order of their fractional parts and the states with the 9 largest fractionals are awarded an extra seat. That would be NJ to NC.
+
+```{r}
+rev(sort(stq%%1))
+```
+
+\  
+
+This can be done using the `hamilton` function.  The first argument is the named vector of population sizes and the second argument is the number of seats to allocate.
+
+```{r}
+hamilton(usa1790, 120)
+```
+
+
+\  
+
+Despite the 1792 bill proposing this method be used was passed but yet it was not brought into use at this time. Instead, this bill was the very first usage of a Presidential veto by George Washingon and a divsor method proposed by [Thomas Jefferson](http://www.maa.org/publications/periodicals/convergence/apportioning-representatives-in-the-united-states-congress-jeffersons-method-of-apportionment) was used.  I will discuss this method in the divisor methods section.  Washington vetoed the bill as Hamilton's method would have meant that some representatives would be representing fewer than 30,000 individuals which was against the constitution.  It was first of only two times that Washington used his Presidential veto. 
+
+
+We can see this here - several states have too many representatives according to the Constitution:
+
+```{r}
+
+usa1790 / hamilton(usa1790, 120)
+
+```
+
+
+\  
+
+
+Despite this initial lack of support, Hamilton's method (also known as Vinton's method by the mid nineteenth century) was passed into law and adopted by 1850 and continued to be used until the turn of the 20th century.  It stopped being used at this time because some strange anomalies or paradoxes were discovered.  These are as follows:
+
+
+\  
+
+**Alabama Paradox**
+
+In 1880 a goverment clerk named C. W. Seaton computed apportionments for all potential House sizes between 275 and 350 members. He then wrote to Congress describing that if the House of Representatives had 299 seats, Alabama would get 8 members but it would only receive 7 members if the House had 300 seats.  This seemed to be a failure of common sense and became known as the [Alabama Paradox](http://en.wikipedia.org/wiki/Apportionment_paradox#Alabama_paradox).
+
+
+Here are the state populations for 1880 and the number of seats that would be given under the Hamilton method if the House had 299 or 300 members:
+
+```{r}
+
+usa1880
+
+
+hamilton(usa1880, 299)
+
+
+hamilton(usa1880, 300)
+
+```
+
+\  
+
+Texas and Illinois would each gain a member whilst Alabama lost one !
+
+\  
+
+
+**New States Paradox**
+
+A second paradox of this method also came to light. This is probably best illustrated using the example of Oklahoma which was admitted to the union in 1907.   In 1900 the house had 386 seats.  According to OK's population, they should have got 5 seats.   
+
+The US population in 1900 and seat allocation according to Hamilton's method was as follows:
+
+```{r}
+
+usa1900
+
+
+hamilton(usa1900, 386)
+
+```
+
+\ 
+
+but the following happens when adding in Oklahoma and allowing for an extra 5 seats:
+
+```{r}
+usa1907
+
+
+hamilton(usa1907, 391)
+```
+
+\  
+
+As you can see, after OK is added in 1907, New York would lose a seat and gives it to Maine!  Again, this seems to fail a common sense test.
+
+
+\  
+
+
+**Population Paradox**
+
+A final paradox that has been found is that states that increase in population more relative to other states over a period of time can even lose seats.
+
+Here is a fictious example. Say there are five states (A-E) and this is their population in hundreds of thousands at time 1 (states1) and time 2 (states2):
+
+```{r}
+states1 <- c(150, 78, 173, 204, 295)
+states2 <- c(150, 78, 181, 204, 296) #C increases by 8, E by 1
+names(states1)<-names(states2)<-LETTERS[1:5]
+
+states1
+
+states2
+```
+
+\  
+
+A, B and D have remained the same whilst E and C have increased in population.  Now say there are 50 seats to allocate - let's see what happens:
+
+
+```{r}
+hamilton(states1, 50)
+
+
+hamilton(states2, 50)
+
+
+```
+
+\  
+
+Even though E's population went up by 100,000 it actually lost a representative seat! whilst B whose population stayed the same increased its seat number and C whose population increased by 800,000 remained the same.
+
+
+\  
+
+
+
+**Strengths & Weaknesses**
+
+The biggest advantage of this method is that it is very easy to calculate and to explain.  This method also never violates the quota rule which states that the number of seats ought to be between the lower and upper quota of the standard quota (effectively the floor and ceiling value).  The biggest weaknesses are that it throws up these strange paradoxes or common sense failures, and also that it does systematically favor larger states over smaller ones.
+
+
+\  
+
+
+**Notes about the function**
+
+There are a few things to note about this function.
+
+__*1. Named vector*__ - the input vector **must** be named.
+
+\  
+
+
+__*2. Zero seats problem*__ - for calculating seats in the House, there must always be at least one seat allocated to every state.  The `hamilton` function does this automatically, so if for instance the standard quota of any state would be e.g. 0.333 and its fraction was not large enough to receive an extra surplus seat, then it will override this and allocate the seat.  This happens several times in US census history for Delaware and Nevada.
+
+Other users of this function may want to have the option of allocating 0 to a group. Therefore the sister function to `hamilton` is `hamilton0` which allows for this.
+
+For example, take the US census in 1880 and 300 available seats in the House:
+
+```{r}
+usa1880
+
+
+hamilton(usa1880, 300)
+
+
+hamilton0(usa1880, 300)
+```
+
+
+\  
+
+Clearly, Nevada would not get a seat unless allowances were made to ensure all states received at least one seat. Alabama would have lost out again in this instance !
+
+\  
+
+
+This zero issue can also be illustrated with a couple of fair division problems.  Say we had five candies to divide to each of 3 children dependent upon how many hours of work they completed.
+
+```{r}
+hours <- c(1,3,11)
+names(hours) <- c("Xavier", "Yasmin", "Zach")
+hours
+
+
+#standard quotas
+(5*hours)/ sum(hours)
+```
+
+\  
+
+If we look at the standard quotas then we should initially give 0 to Xavier, 1 to Yasmin and 3 to Zach.  The question then is what to do with the fifth candy.  If we allow zeros then that extra one would be given to Zach.  If we don't allow zeros, then that extra one will be given to Xavier.
+
+```{r}
+hamilton(hours,5)
+
+
+hamilton0(hours,5)
+```
+
+
+\  
+
+This also leads us to an issue with the `hamilton` function when we automatically assign 1 to every group.  If there are many individuals with small standard quotas, then it may become impossible to apportion.  
+
+For instance, if we had ten gold watches to give out proportionally to sales reps who sold the most cars in a car dealership and the data looked like this:
+
+```{r}
+cars.sold <- c(1, 2, 15, 3, 1, 12, 4)
+names(cars.sold) <- c(paste0("rep", 1:7))
+cars.sold
+
+
+#standard quotas
+(cars.sold*10) / sum(cars.sold)
+
+```
+
+\ 
+
+Using Hamilton's method everyone would get at least 1 watch accounting for 7 of the watches, but rep3 and rep6 should each get 3 watches, making 11 to be allocated when there are only 10.  Clearly this does not work.  If it is possible to allocate zero watches to individuals, then we can apportion.  Notice that the standard `hamilton` function reports the error.
+
+```{r, error=TRUE}
+hamilton(cars.sold, 10)
+
+
+hamilton0(cars.sold, 10)
+```
+
+
+\  
+
+
+__*3. Population and seat size*__ - the procedure works by calculating the standard quota of each state i.e. each element of the initial inputted vector.  Therefore it won't work in situations where 1) the values in the input vector are too small, 2) the number of seats to be allocated are either too small.
+
+For example, let's say we had the following vector and wanted to allocate 3 seats:
+
+```{r}
+z <- c(1,3,11)
+names(z) <- LETTERS[1:3]
+z
+
+
+z1 <- sum(z) / 3 #standard divisor
+z1
+
+z2 <- z/z1 #standard quota
+z2
+
+```
+
+\  
+
+The above cannot work as the function will try to allocate 1 seat to each of A and B and then 2 to C.  The minimum number of seats that can be allocated are 4.
+
+
+
+\  
+
+
+**Future adaptations**
+
+There are [several slight variations](http://en.wikipedia.org/wiki/Largest_remainder_method) to the Hamilton Method, which change slightly how the standard quotas are calculated.  I will add these in time. These include:
+
+- Droop Quota method
+- Hagenbach-Bischoff quota 
+- Imperiali quota
+
+
+\  
+
+------
+
+### **Lowndes' Method**
+
+In 1822, Rep. Lowndes of South Carolina proposed an [alternative method](http://www.maa.org/publications/periodicals/convergence/apportioning-representatives-in-the-united-states-congress-lowndes-method-of-apportionment) to Hamilton's. The main tenet of this approach was to give a greater emphasis to the smaller states.  Consequently, this approach never received much support and did not become law.
+
+The general logic is as follows:
+
+- choose the number of seats available
+- calculate the standard divisor (this is equal to the total population / number of seats)
+- calculate the standard quota (this is equal to each state population / standard divisor)
+- assign each state initally its lower quota (this is the rounded down value of each standard quota)
+- list the number of persons per already assigned representative
+- assign extra seats to those states with the highest number of persons per assigned representative untial all seats are filled
+
+This function also accounts for the zero seats issue by automatically assigning at least one representative per state.
+
+
+Here is an example of Lowndes' approach from the 1820 census with 213 seats to assign:
+
+```{r}
+usa1820
+
+
+lowndes(usa1820, 213)
+```
+
+\  
+
+For comparison, here is how Lowndes' approach differs from Hamilton's for the 120 seats to be assigned in 1790.
+
+```{r}
+hamilton(usa1790, 120)
+
+
+lowndes(usa1790, 120)
+
+```
+
+\  
+
+As is clearly evident, Lowndes' method disporportionately favors the smaller states.
+
+\  
+
+
+------
+
+
+## Divisor Methods
+
+There are a large number of divisor methods. The general logic is as follows:
+
+- choose the house size (number of seats)
+
+- find a number (the divisor) such that when all the population sizes of every state are divided by this divisor and these numbers are rounded, that they sum to the number of seats.
+
+The different divisor methods differ in how they round numbers. Further, there is rarely one unique value of the divisor that satisfies this equation, but all values that do for each method will lead to the same apportionment.
+
+
+Although divisor methods are free from paradoxes that the Hamilton Method suffers, they can violate another rule of apportionment the quota rule - that the number of seats allocated should be no higher than rounded up value of the standard quota and no lower than the rounded down value of this number.
+
+
+\  
+
+Eventually the package will include the following divisor apportionment methods:
+
+- **Jefferson's Method**, aka Greatest Divisor Method, [de Hondt's Method](http://en.wikipedia.org/wiki/Victor_D%27Hondt) - (used in House from 1791-1830)
+- **[Webster's Method](http://en.wikipedia.org/wiki/Daniel_Webster)**, aka Major Fractions Method, Sainte-Lague Method, - (used in House in 1840, 1910 and 1930)
+- **Huntington-Hill Method**, aka Geometric Mean Method, Equal Proportions Method, - (used in House from 1940 to present)
+- **Adams' Method**, aka Smallest Divisors Method, - (considered by Congress but not used)
+- **Dean's Method**, aka Harmonic Mean Method
+
+\  
+
+The package currently contains functions called `jefferson`, `jefferson0` and `adams` that can perform those methods.
+
+\  
+
+### **Jefferson's Method**
+
+In 1792, ten days after George Washington vetoed the bill to use the Hamilton Method, Congress passed the method of apportionment sugested by Thomas Jefferson.  They also decided to reduce the number of seats available from 120 to 105 to avoid the issue of having representatives representing too few people (i.e. fewer than 30,000).
+
+Jefferson's Method works as follows:
+
+1. Find the initial divisor - this is equal to the sum of state populations divided by the number of seats available.
+
+2. Determine if the sum of the rounded down standard quotas produced by dividing state populations by the divisor are equal to the number of seats available.
+
+3. If they are not, then through trial and error, find a divisor such that the sum of the rounded down standard quotas produced by dividing state populations by the divisor are equal to the number of seats available.
+
+4. If a state's lower quota is equal to zero, assign them one representative seat regardless (the `jefferson` function automatically does this at present).
+
+For example, here is the 1790 US state populations:
+
+```{r}
+usa1790
+
+
+divisor <- sum(usa1790) / 105
+initial.divisor <- floor(divisor)
+initial.divisor
+
+
+first.sum <- sum(floor(usa1790/initial.divisor))
+first.sum
+
+
+first.sum == 105
+
+
+```
+
+
+\  
+
+The best strategy here as we have too few seats is to decrease the value of the divisor to try and find a solution.   This is possible and is what the `jefferson` function does:
+
+
+```{r}
+jefferson(usa1790, 105)
+
+rev(sort(jefferson(usa1790, 105)))
+```
+
+\  
+
+... and to compare this with what Hamilton's Method would have produced:
+
+```{r}
+hamilton(usa1790, 105)
+
+```
+
+\  
+
+If Hamilton's had been used instead then 13 of the 15 states would have received the same number of Representatives.  Unsurprisingly, Virginia were the beneficiaries under Jefferson's method with poor Delaware losing a seat.
+
+This method was used by the House from 1792-1842 when it was considered that it was too favorable towards the larger States and a different method was needed.
+
+\  
+
+Here is how the Jefferson Method determined the allocation of seats for the 1832 elections to the House of Representatives with 240 seats being available.  I have sorted the allocations in descending order.
+
+
+```{r}
+usa1832
+
+
+rev(sort(jefferson(usa1832, 240)))
+```
+
+\  
+
+**Quota Rule Violations**
+
+Although divisor methods do not have paradoxes associated with them, they can violate the quota rule which states that the number of seats given to each state should be at most the ceiling value of their standard quota and at least the floor value of their standard quota.   The 1832 election above is interesting from this point of view because it actually breaks the quota rule.  New York is allocated 40 seats, yet this is the standard quota for each state:
+
+
+```{r}
+(240*usa1832)/sum(usa1832)
+
+```
+
+\  
+
+NY should have received only 38 or 39 seats to satisfy the quota rule, but instead it received 40.   
+
+Interestingly, according to [Balinski and Young’s Impossibility Theorem](http://en.wikipedia.org/wiki/Apportionment_paradox#Impossibility_result), it is not possible to come up with a perfect apporitonment system - there will always be quota rule violations or paradoxes but not both with any system.
+
+
+\  
+
+The quota rule violation can also be understood with this example of a fictitious country called Parador which has 5 states and needs to allocate 250 seats to its House.  Below I will show the populations of each state, the standard, lower and upper quotas and the results of Jefferson's Method using the built-in dataset `parador`.
+
+
+```{r}
+
+state = names(parador)
+popn = parador
+st.q = (250*parador)/sum(parador)
+low.q = floor(st.q)
+upp.q = ceiling(st.q)
+seats = jefferson(parador, 250)
+
+data.frame(state, popn, st.q, low.q, upp.q, seats)
+
+
+```
+
+
+\  
+
+As can be seen, state B actually garners one extra seat that it should not do so according to the quota rule.  One of the major criticisms of the Jefferson Method is that it overly favors large states.
+
+\  
+
+
+
+**Notes about using the Jefferson Function**
+
+There are two important issues to consider as regards the Jefferson Method function.
+
+**1.** All the divisor methods utilize a 'trial-and-error' method to find a divisor that will correctly apportion the seats to the states based on relative population size.  For the `jefferson` function to work, there must therefore be a divisor that meets this criteria.     
+
+The way I have programmed the `jefferson` function to search for this divisor is to begin with the initial divisor and then try smaller and smaller divisors (initial divisors are too large).   The user can adjust the increments by which the function searches for these divisors.  The default is set to `k=1` which means that the function will search for divisors by decreasing integer values one by one.   This works fine for examples such as those above when using large population sizes.  However, this might not be appropriate when using smaller initial values in groups.  In this case, it may be better to set `k` to a smaller value such that the function will search for divisors between integers.
+
+\  
+
+Here is an example:
+
+> A teacher has 10 gold stars to divide between 6 students who are taking an exam.  The teachers says they will award the stars based on how many questions each student gets correct.
+
+
+```{r}
+answers <- c(1,4,5,14,16,3)
+names(answers) <- paste0("Student ", LETTERS[1:6])
+answers
+
+
+(10*answers)/sum(answers) #standard quotas
+
+```
+
+\  
+
+Let's try and apply the `jefferson` function with the default parameter setting for `k=1`:
+
+```{r, error=TRUE}
+
+jefferson(answers,10)
+
+```
+
+
+\   
+
+This tells us that it was not able to find an appropriate divisor and that we should try reducing our value of `k`.
+
+
+```{r}
+jefferson(answers, 10, k=0.1)
+
+```
+
+
+\   
+
+Now, we are able to find a solution.  My suggestion for adjusting `k` is to gradually decrease it by one decimal place at a time.  
+
+Here is another example. 
+
+> In the country of Tecala, there are four states that wish to elect 160 seats to their house. The population of each state was 3.31, 2.67, 1.33 & 0.69 (in millions).
+
+\  
+
+```{r, error=TRUE, collapse=TRUE}
+popn <- c(3.31, 2.67, 1.33, 0.69)
+names(popn)<- c("Apure", "Barinas", "Carabobo", "Dolores")
+popn
+
+
+jefferson(popn, n=160) # 160 seats
+jefferson(popn, n=160, k=0.1) # 160 seats
+jefferson(popn, n=160, k=0.01) # 160 seats
+jefferson(popn, n=160, k=0.001) # 160 seats
+jefferson(popn, n=160, k=0.0001) # 160 seats
+
+
+```
+
+\  
+
+**2.** Allowing zero apportions.  It is possible to allow for zero apportions using `jefferson`'s sister function `jefferson0`. 
+
+For instance, if the teacher in the example above did not feel that all students should get gold stars but only those who were deserving should get them, then we could allocate using `jefferson0`:
+
+```{r}
+jefferson0(answers, 10, k=0.1)
+
+
+jefferson(answers, 10, k=0.1)
+
+```
+
+
+\  
+
+
+
+
+### **Adams' Method** 
+
+In 1832, former president John Quincy Adams essentially suggested an inverse method to Jefferson's Method.  This method was considered but never passed into law.  Essentially, this method operates identically to Jefferson's except that the rounding method used to determine representatives from the standard quota is a ceiling rounding (i.e. round the standard quota up).  This has the result of overly benefitting the smaller states and hence why it didn't receive much support.
+
+Here is an example for the `adams` function for the 1832 House with a size of 240 seats.  The function is compared to the Hamilton and Jefferson Methods.
+
+
+```{r}
+usa1832
+
+
+adams(usa1832, 240)
+
+
+rev(sort(jefferson(usa1832, 240))) #function doesn't automatically sort currently
+
+
+hamilton(usa1832, 240)
+
+```
+
+
+\  
+
+
+
+**Notes about using the Adams Function**
+
+1. As with the `jefferson` and `jefferson0` functions, the `adams` function will automatically stop and return an error message if it cannot find an appropriate divisor.  It will encourage the user to use a smaller incremental for the 'trial-and-error' process of finding a divisor.
+
+For example, say we had collected data on how many workers attended an office on each day of the week and we wanted to create a chart such as a [waffle chart](https://github.com/hrbrmstr/waffle) to visually represent this.  However, we wanted a nice rectangular chart that requires 100 percentage points to be allocated.  We could use the `adams` function.
+
+
+```{r, warning=FALSE,message=FALSE, fig.width=7, fig.height=2, error=TRUE}
+
+set.seed(111)
+workers <- round(runif(7, 1, 1000))
+names(workers) <- c("Mon", "Tues", "Weds", "Thurs", "Fri", "Sat", "Sun")
+workers
+
+adams(workers)  #defaults are n=100, k=1
+
+
+adams(workers, k=.1)
+
+
+
+waffle::waffle(adams(workers, k=.1), rows=5)
+```
+
+
+\  
+
+
+2. Like the Lowndes Method above, the Adams Method uses a rounding up method, so it is not possible to apportion zeros to groups.
+
+\ 
+
+------
+
+
+### Note of Caution
+
+This package is very much a work in progress. I am looking to improve functions to make them more generalizable as well as adding new functions. Please reach out if you have suggestions or are interested in this project.
+
+\  
+
+------
+
+
+
+### Ideas for future
+
+I'm keen to hear from anyone who has ideas for this project.  One vision I have is to generate map plots that visualize how different states have gained and lost representative seats over time.  I'd also like to map forecasts of how seats in the House may change given current population projections.
+
+
+\  
+
+
+------
+
+
+### References and Further Reading
+
+There are many online resources that describe the apportionment problem, here are some that are worthwhile:
+
+- [Mathematical Association of America](http://www.maa.org/publications/periodicals/convergence/apportioning-representatives-in-the-united-states-congress-paradoxes-of-apportionment)
+- [American Mathematical Association](http://www.ams.org/samplings/feature-column/fcarc-apportionii1)
+- [The Mathematics of Apportionment](http://faculty.tcu.edu/epark/papers/Apportionment.pdf)
+

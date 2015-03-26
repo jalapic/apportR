@@ -1,0 +1,140 @@
+---
+title: "Inspiration for apportR"
+author: "Prof James P Curley, Columbia University"
+date: "`r Sys.Date()`"
+output: html_document
+vignette: >
+  %\VignetteIndexEntry{Inspiration for apportR}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
+---
+
+```{r, echo = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+So why did I start to write this package that works out how to best apportion seats by state to the US House of Representatives?  It seems illogical as I am not an American,  I am not a political scientist and if I'm honest,  I don't fully understand the American political system or really have much interest in it.   
+
+\  
+
+Instead, this is a classic case of having one simple question that I wanted to answer and then being led down a path of ever expanding further questions.  It started with me playing around with Bob Rudis' excellent new `waffle` package - which is on CRAN but can [also be found here](https://github.com/hrbrmstr/waffle).
+
+\  
+
+I'll walk you through the steps...
+
+\  
+
+
+#### Here's what happened...
+
+First install the `waffle` package:
+
+```{r, eval=FALSE}
+
+devtools::install_github("timelyportfolio/rcdimple") # only for htmlwidget functionality
+devtools::install_github("hrbrmstr/waffle")
+
+```
+
+\  
+
+
+I was interested in plotting data like such as the following example. Here there are seven groups A to G with each one possessing an integer value that are stored in a vector x. The sum of x is 255.   Using the `waffle` function, I am plotting this data with each square representing '5' of the total sum.  I'm also using 5 rows to plot the data.
+
+\  
+
+
+```{r, fig.width=7, fig.height=2, warning=FALSE, message=FALSE}
+
+library(waffle)
+
+set.seed(10)
+x <- round(runif(7, 1, 100),0)
+names(x) <- LETTERS[1:7]
+x
+
+
+sum(x)
+
+
+waffle(x/5, rows=5)
+
+```
+
+
+It looks pretty.   What you might notice is that we have 48 squares meaning that 240 of our total sum are represented (i.e. $48*5$). Or, 15, which would equal 2 squares are not.   Breaking it down by group, you can see that there are 10 sqaures for A meaning that '1' of A's total of 51  is not represented, 6 squares of B leaving out '1' of B's total of 31, 8 squares of C meaning that 3 of C's total of 43 are lost, etc. etc.   As D is the only group whose value is divisible by 5, it is the only one whose squares exactly represent its value.  The way `waffle` works is to take the floor or rounded-down value of each groups number (as far as I can tell - I'm happy to be corrected!).
+
+\  
+
+My next interest was in creating charts that represent percentage plots.  i.e. to convert each vector into percentages and then to plot those. Like this:
+
+```{r, warning=FALSE,message=FALSE, fig.width=7, fig.height=2}
+x1 <- (100*x)/sum(x)
+x1
+
+
+waffle(x1, rows=5)
+```
+
+\  
+
+The first thing to note is that there obviously aren't 100 squares - there are 97.  If we go group by group, A is perfectly represented by 20 blocks as it's percentage is exactly 20%. For each of the others, you'll notice that the number of squares for each group is the integer part of each percentage (or the floor / rounded down value in other terms).  
+
+Summing the fractional parts shows that indeed the missing 3 squares are the fractional parts of each percentage:
+
+```{r}
+#return fractional parts
+x1%%1 
+
+
+sum(x1%%1)
+```
+
+\  
+
+Obviously, this method of visualizing these data is perfectly appropriate.  It may well be (and often will be) just wrong to have extra squares representing a whole percentage point.  However, we could easily concede in our example that group G and group C with fractions of .98 and .86 should get an extra square, whereas group F and group B with fractions of .01 and .16 should not.  It would be difficult to decide whether E with a fractional of .53 or D with a fractional of .45 should get the last extra square.
+
+Because I wanted to produce a number of `waffle` plots to compare, I did actually wanted my graphs to be perfect rectangles of 5 rows by 20 columns and for these extra squares to be allocated.  The next question was obviously - what's the best or fairest method of doing this?  
+
+Unsurprisingly to many of you, I had stumbled upon the [apportionment problem](http://www.ams.org/samplings/feature-column/fcarc-apportion2) that has a long history in American and other countries' political systems.   
+
+The `apportR` package was therefore my way of collating all the various methods that have been proposed to solve this problem.
+
+
+\  
+
+
+#### One final "fair division" example
+
+Here is a common example used to illustrate the problem at hand.  
+
+> Mom has 50 identical pieces of candy that cannot be broken into bits.  She tells her five children that she will divide the candy fairly at the end of the week according to the proportion of housework that each performs.
+
+\  
+
+
+Here are the minutes worked by each child:
+
+```{r, warning=FALSE,message=FALSE, fig.width=7, fig.height=2}
+minutes <-  c(150, 78, 173, 204, 295)
+names(minutes) <- c("Anna", "Betty", "Carl", "Derek", "Ella")
+minutes
+
+
+#calculate how many candies each should get
+candies <- (50*minutes) / sum(minutes)
+candies
+
+floor(candies)
+sum(floor(candies))
+
+
+waffle(candies, rows=5) 
+
+```
+
+\  
+
+Obviously, it's very hard to work out who should get the final two candies?   That's the problem at hand !
+
