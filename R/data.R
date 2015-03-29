@@ -10,6 +10,12 @@
 #' @source \url{http://www.maa.org/publications/periodicals/convergence/apportioning-representatives-in-the-united-states-congress-introduction}
 "usa1832"
 
+#' USA population by state in 1870.
+#'
+#' @format A named vector of numbers
+#' @source \url{http://www.maa.org/publications/periodicals/convergence/apportioning-representatives-in-the-united-states-congress-introduction}
+"usa1870"
+
 #' USA population by state in 1900.
 #'
 #' @format A named vector of numbers
@@ -22,11 +28,23 @@
 #' @source \url{http://www.maa.org/publications/periodicals/convergence/apportioning-representatives-in-the-united-states-congress-introduction}
 "usa1907"
 
+#' USA population by state in 1940.
+#'
+#' @format A named vector of numbers
+#' @source \url{http://www.maa.org/publications/periodicals/convergence/apportioning-representatives-in-the-united-states-congress-introduction}
+"usa1940"
+
 #' USA population by state in 1990.
 #'
 #' @format A named vector of numbers
 #' @source \url{http://www.maa.org/publications/periodicals/convergence/apportioning-representatives-in-the-united-states-congress-introduction}
 "usa1990"
+
+#' USA population by state in 2000.
+#'
+#' @format A named vector of numbers
+#' @source \url{http://www.maa.org/publications/periodicals/convergence/apportioning-representatives-in-the-united-states-congress-introduction}
+"usa2000"
 
 #' USA population by state in 1880.
 #'

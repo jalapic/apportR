@@ -2,6 +2,7 @@
 #'
 #' @param x A named vector.
 #' @param n Number of apportioned units to sum to
+#' @param k The incrementing interval used to search for divisors
 #' @return A named vector of length \code{x} containing apportioned integers summing to \code{n}.
 #' @examples
 #' jefferson(usa1990, 435)

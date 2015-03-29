@@ -10,6 +10,8 @@ jefferson(x, n = 100, k = 1)
 \item{x}{A named vector.}
 
 \item{n}{Number of apportioned units to sum to}
+
+\item{k}{The incrementing interval used to search for divisors}
 }
 \value{
 A named vector of length \code{x} containing apportioned integers summing to \code{n}.

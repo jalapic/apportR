@@ -16,7 +16,7 @@ knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
 
 ## Introduction
 
-The `apportR` package contains several functions for performing apportionment procedures.  The inspiration behind me writing this package can be found [here]().  This package is in development and is very much a work in progress.  This vignette details some sample problems that can be solved using the functions in this package, information regarding the example datasets contained in `apportR` as well as some background and worked examples of each function.  At this stage of development I would welcome hearing from anyone who thinks that they could help improve the package.
+The `apportR` package contains several functions for performing apportionment procedures.  The inspiration behind me writing this package can be found [here](http://rpubs.com/jalapic/apportRinsp).  This package is in development and is very much a work in progress.  This vignette details some sample problems that can be solved using the functions in this package, information regarding the example datasets contained in `apportR` as well as some background and worked examples of each function.  At this stage of development I would welcome hearing from anyone who thinks that they could help improve the package.
 
 
 
@@ -172,13 +172,15 @@ data(package='apportR')
 #usa1880                              USA population by state in 1880.
 #usa1900                              USA population by state in 1900.
 #usa1907                              USA population by state in 1907.
+#usa1940                              USA population by state in 1940.
 #usa1990                              USA population by state in 1990.
+#usa2000                              USA population by state in 2000.
 #usa_census                           USA population by state in every census.
 ```
 
 \  
 
-All are named vectors except for the last `usa_census` which is a dataframe that contains the year that each state was admitted to the union as well as the population of every state at every official US census.  It should be noted that these population figures do not include Native American or slave populations.
+All are named vectors except for the last `usa_census` which is a dataframe that contains the year that each state was admitted to the union as well as the population of every state at every official US census.  It should be noted that these population figures do not include Native American or slave populations.  (Note - for some reason, some of the population sizes differ between the named vectors and the corresponding columns in `usa_census` as a result of obtaining the data from two different sources for each.  Some of this discrepancy may be due to e.g. whether to include overseas military and civilian personnel and their families towards the populations of their home states or not. I will try to update with wholly consistent data asap).
 
 
 \  
@@ -607,10 +609,10 @@ Although divisor methods are free from paradoxes that the Hamilton Method suffer
 Eventually the package will include the following divisor apportionment methods:
 
 - **Jefferson's Method**, aka Greatest Divisor Method, [de Hondt's Method](http://en.wikipedia.org/wiki/Victor_D%27Hondt) - (used in House from 1791-1830)
-- **[Webster's Method](http://en.wikipedia.org/wiki/Daniel_Webster)**, aka Major Fractions Method, Sainte-Lague Method, - (used in House in 1840, 1910 and 1930)
-- **Huntington-Hill Method**, aka Geometric Mean Method, Equal Proportions Method, - (used in House from 1940 to present)
 - **Adams' Method**, aka Smallest Divisors Method, - (considered by Congress but not used)
+- **[Webster's Method](http://en.wikipedia.org/wiki/Daniel_Webster)**, aka Webster-Willcox Method, Major Fractions Method, Sainte-Lague Method, - (used in House in 1840, 1910 and 1930)
 - **Dean's Method**, aka Harmonic Mean Method
+- **Huntington-Hill Method**, aka Geometric Mean Method, Equal Proportions Method, - (used in House from 1940 to present)
 
 \  
 
@@ -887,6 +889,283 @@ waffle::waffle(adams(workers, k=.1), rows=5)
 2. Like the Lowndes Method above, the Adams Method uses a rounding up method, so it is not possible to apportion zeros to groups.
 
 \ 
+
+
+\  
+
+
+### **Webster's  Method**
+
+In the 1830s another divisor method was suggested by Senator Daniel Webster.  Webster's method can be summarized as follows:
+
+- choose the number of seats available
+- calculate the standard divisor (this is equal to the total population / number of seats)
+- calculate the standard quota (this is equal to each state population / standard divisor)
+- calculate the arithmetic mean of the lower bound (LQ) and upper bound (UQ) of the standard quota of each state
+- assign a state its upper quota number of states if the standard quota is greater than the arithmetic mean of the LQ and UQ
+- assign a state its lower quota number of states if the standard quota is less than or equal to the arithmetic mean of the LQ and UQ
+- check if the total number of seats assigned are equal to the number of seats desired.
+- if the total number of seats are not equal to the number of seats desired, find a divisor that solves this.
+
+\  
+
+This method was used in the 1840, 1910 and 1930 apportionments.
+
+I will illustrate Webster's method using population data from the 1832 apportionment to find 240 seats:
+
+```{r}
+usa1832
+
+
+divisor1832 <- sum(usa1832)/240
+stq1832 <- usa1832/divisor1832
+webster.values <- ifelse(stq1832%%1 > 0.5, ceiling(stq1832), floor(stq1832))
+cbind(stq1832, webster.values)
+
+
+sum(webster.values)
+```
+
+\  
+
+Here, the number of seats produced by this method are 241, which is one too many for the desired 240 seats.  The Webster method proceeds by trying different divisors until a solution is found.   This is done by the `webster` function in `apportR`.
+
+```{r}
+webster(usa1832,240)
+```
+
+\  
+
+This shows that the unlucky state was Kentucky who had to give up a seat.  Unsurprisingly, the standard quota of Kentucky had the fractional closest to 0.5.
+
+
+\  
+
+
+### **Dean's Method**
+
+Dean's method was devised by Prof James Dean, a professor of astronomy and mathematics at Dartmouth and University of Vermont.  It operates in a very similar fashion to Webster's method, but instead of rounding based on the arithmetic mean, the harmonic mean is used.
+
+\  
+
+```{r}
+harmonic1832 <- 2 / ( (1/floor(stq1832)) + (1/ceiling(stq1832)) )
+dean.values <- ifelse(stq1832 > harmonic1832, ceiling(stq1832), floor(stq1832))
+cbind(stq1832, harmonic1832, dean.values)
+
+
+sum(dean.values)
+```
+
+\  
+
+This time the initial value is 2 seats too many.  The `dean` function will find a solution if possible.
+
+```{r}
+dean(usa1832, 240)
+```
+
+\  
+
+Dean’s method was never used by Congress.  One issue with Dean's is that it does have bias towards smaller states. For instance, in the example above, NY's standard quota is 38.59 yet it only gets 38 seats.  Alternatively, Louisiana's standard quota is only 3.46 yet it gets 4 seats.  This is because the harmonic mean approaches the arithmetic mean at larger numbers, meaning for smaller numbers, there is a greater possibility of rounding upwards.
+
+Because finding a divisor that works can be computationally time consuming, we can speed up the process by skipping certain divisors. Setting the parameter `k` to be a higher value, e.g. 20, will speed up the function considerably.  Obviously, we may miss a divisor, in which case it would return an error message and advise adjusting k.  For situations where the named vector has much smaller values initially, the user may actually want to reduce k.
+
+```{r, warning=FALSE, message=FALSE}
+library(microbenchmark)
+
+microbenchmark(dean(usa1832, 240))
+
+
+microbenchmark(dean(usa1832, 240,20))
+```
+
+
+\  
+
+This increase in speed achieved by increasing the `k` constant can also be utilized with the other divisor methods.
+
+\ 
+
+
+### **Huntington-Hill's Method**
+
+Huntington-Hill's method was initially proposed in 1911 by Joseph A. Hill, Chief Statistician of the Bureau of the Census and later added to by Prof Edward Huntington, professor of mechanics & mathematics at Harvard.  This operates in a very similar fashion to Webster's and Dean's method, but use the geometric mean to assign rounding.
+
+This method has been used by the House since 1940 and is still the currently used method.  Below is an example of applying this method to the 1832 data.
+
+
+```{r}
+
+gmean1832 <- (sqrt(floor(stq1832) * ceiling(stq1832)))
+hhill.values <- ifelse(stq1832 > gmean1832, ceiling(stq1832), floor(stq1832))
+cbind(stq1832, gmean1832, hhill.values)
+
+
+sum(dean.values)
+```
+
+\  
+
+This method is still somewhat biased to smaller states as the geometric mean is smaller than the arithmetic mean, but this difference is not as pronounced as the harmonic mean used in Dean's method. 
+
+\  
+
+
+### **Important notes about Webster, Dean and Huntington-Hill methods**
+
+In the case of assigning seats to a parliament, Webster's method could theoretically apportion 0 seats but Dean's method and Huntington-Hill's methods will not  - they will always assign at least one seat.  This can be understood by demonstrating what happens with Nevada in the 1940 census when the House had 435 seats.  
+
+```{r}
+usa1940
+```
+
+\  
+
+Let's look at the standard quotas of Delaware, Wyoming and Nevada:
+
+```{r}
+tail(usa1940 / (sum(usa1940)/435), 3)
+```
+
+\  
+
+Nevada has the lowest standard quota and the only one under 0.5.  Now let's calculate the lower quota and upper quota and the arithmetic mean, harmonic mean and geometric means of these two numbers:
+
+```{r}
+x1940 <- data.frame(stq = tail(usa1940 / (sum(usa1940)/435), 3))
+x1940$lq <- floor(x1940$stq)
+x1940$uq <- ceiling(x1940$stq)
+x1940$arith <- mean(c(floor(x1940$stq), ceiling(x1940$stq)))
+x1940$harmon <-  2 / ( (1/floor(x1940$stq)) + (1/ceiling(x1940$stq)) )
+x1940$geom <- (sqrt(floor(x1940$stq) * ceiling(x1940$stq)))
+
+x1940
+
+```
+
+\  
+
+The harmonic and geometric means of 0 and 1 are 0 and therefore the standard quota of all states is always going to be higher than this meaning that these states are going to be assigned at least 1 seat automatically.  With Webster's method that uses the arithmetic mean for rounding, it is possible for the standard quota of any state to be lower than the arithmetic mean (0.5), resulting in a state being allocated 0 seats.   
+
+Obviously, this fails the common sense test and Webster's method has to be altered accordingly to be able to assign a seat to a state in this situation.  All three functions,  `webster`, `dean` and `hhill`  will automatically always assign at least 1 seat.  
+
+For example, here are the results of the three methods compared to one another:
+
+```{r}
+webster1940<-webster(usa1940, 435)
+hhill1940<-hhill(usa1940, 435)
+dean1940<-dean(usa1940, 435)
+
+webster1940 <- webster1940[names(usa1940)]
+hhill1940 <- hhill1940[names(usa1940)]
+dean1940 <- dean1940[names(usa1940)]
+
+data.frame(webster=webster1940, hhill=hhill1940, dean=dean1940)
+
+```
+
+
+\  
+
+As can be seen from the table above, the Webster Method allocated 18 seats to Michigan and 6 to Arkansas, whereas Huntington-Hill's method (and Dean's Method) gave 7 to Arkansas and 17 to Michigan. 
+
+Unsurprisingly, a Democratic representative from Arkansas sponsored a bill to use Huntington-Hill’s method to apportion the House. This was opposed by all the Republican representatives and the Democrats from Michigan. Nevertheless, this bill passed and Huntington-Hill's method has been used ever since, and the number of seats has remained at 435.
+
+
+\  
+
+
+**Assigning Zero Apportions**
+
+In other situations, it may be necessary to apportion zero to one subject in the final apportions.  This could happen when using the Webster method and a subject's standard quota is beneath 0.5, but it could also occur when using Dean's method or Huntington-Hill's method if the standard quota is also 0 (i.e. if the individual subject in the named vector was initially zero).
+
+For example, if special allowances had not been made in the 1940 apportionment, then Nevada would have received 0 seats under Webster's method as their standard quota was actually below 0.5.  This is shown here with the function `webster0` which allows for 0 seats to be allocated:
+
+
+```{r}
+webster0(usa1940, 435)
+
+```
+
+\  
+
+Nevada's seat would be given to Arkansas in this situation.
+
+
+\  
+
+To illustrate the possibility of apportioning zeros using the Dean or Huntington-Hill methods, imagine the following scenario.
+
+> If 10 scholarships were to be given out to subject based on the proportion of students majoring in that subject that year but one of the subjects actually contained zero students.
+
+Comparing each method allowing and not-allowing for zero apportionment:
+
+```{r}
+majs <- c(100, 154, 0, 22, 5)
+names(majs) <- c("English", "History", "Swahili", "French", "Aeronautics")
+majs
+
+
+webster(majs, 10)
+dean(majs, 10)
+hhill(majs, 10)
+
+
+webster0(majs, 10)
+dean0(majs, 10)
+hhill0(majs, 10)
+```
+
+\  
+
+Clearly, when allowing for zero apportionment, Dean's Method and Huntington-Hill's Method only give 0's when a subject initially contained zeros, whereas Webster's Method will also apportion zeros when the standard quota is less than 0.5 as is the case here for Aeronautics.
+
+Going on from this, it's also clear that the results for Dean's method and for Huntington-Hill's method are the same as if the 'Swahili' group never existed, i.e.
+
+```{r}
+majs1 <- c(100, 154, 22, 5)
+names(majs1) <- c("English", "History", "French", "Aeronautics")
+
+majs1
+
+dean0(majs1, 10)
+hhill0(majs1, 10)
+
+```
+
+
+\  
+
+
+## **1876 Presidential Election**
+
+Perhaps the biggest snafu in US Presidential electoral history occurred as a result of mis-apportionment.  
+
+
+The House of Representatives in 1872 was apportioned according to the US census of 1870 and the House size was 292.  Even though the legal method in place at the time was Hamilton's method,  the apportionment that occurred had the same results as Dean's Method (even if it's not clear that Dean's Method was actually used).
+
+```{r}
+usa1870
+
+hamilton(usa1870, 292)
+
+
+dean(usa1870, 292)
+
+```
+
+you will notice that four states ended up with different number of representatives than they should have received under the legally constituted Hamilton's Method.   New York and Illinois recieved one seat too few whilst New Hampshire and Florida received one extra seat each.
+
+This ended up being historically very significant.  In the Presidential election of 1876, Samuel Tilden won the state of New York and received 35 electoral votes. He would have received 36 if the Hamilton apportionment had been used.  His opponent, Rutherford B. Hayes, won the other three states and had the Hamilton Method been applied would have received one fewer electoral vote in both Florida and New Hampshire (he would also have actually gained one electoral college vote in Illinois). In the election, Hayes beat Tilden in the Electoral College by a vote of 185 to 184. So, if the correct apportionment had actually been followed, the vote would have been 185 to 184 in favor of Tilden!
+
+\  
+
+This continues to have relevance for today.  Had Jefferson's Method been used to apportion the House prior to the 2000 US Presidential election, then Gore would have defeated Bush in the electoral college count!   Had Hamilton's method been used then it would have been a tie!
+
+\  
+
+
 
 ------
 
