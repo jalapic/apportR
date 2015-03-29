@@ -22,4 +22,4 @@ It is probably best to read the two vignettes.
 
 1. Why I decided to start writing this package -  http://rpubs.com/jalapic/apportRinsp
 
-2. Introduction to `apportR` - http://rpubs.com/jalapic/apportR
+2. Introduction to `apportR` - http://rpubs.com/jalapic/apportRvig
